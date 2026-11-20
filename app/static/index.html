@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>健康膳食 Agent · 节点流 Demo</title>
+<style>
+  :root {
+    --bg: #0f1220;
+    --panel: #1a1e33;
+    --panel2: #242945;
+    --border: #2f3555;
+    --text: #e5e7f3;
+    --muted: #8b92b8;
+    --accent: #6366f1;
+    --accent-soft: #373973;
+    --ok: #22c55e;
+    --warn: #f59e0b;
+    --err: #ef4444;
+    --chip: #2d3357;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--text);
+    min-height: 100vh;
+  }
+  header {
+    padding: 20px 32px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    display: flex; align-items: center; gap: 16px;
+  }
+  header h1 { margin: 0; font-size: 18px; font-weight: 600; }
+  header .sub { color: var(--muted); font-size: 13px; }
+  .container {
+    max-width: 1200px; margin: 24px auto; padding: 0 24px;
+    display: grid; gap: 20px;
+  }
+
+  /* ---------- 输入区 ---------- */
+  .input-card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px;
+  }
+  textarea#query {
+    width: 100%; min-height: 64px; resize: vertical;
+    background: var(--panel2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px 14px; font-size: 15px; font-family: inherit;
+  }
+  .row { display: flex; gap: 12px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+  input#ingredients-input {
+    flex: 1; min-width: 200px;
+    background: var(--panel2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 14px; font-size: 14px;
+  }
+  button#submit {
+    background: var(--accent); color: white;
+    border: none; border-radius: 8px;
+    padding: 10px 24px; font-size: 14px; font-weight: 600;
+    cursor: pointer; transition: opacity 0.15s;
+  }
+  button#submit:hover:not(:disabled) { opacity: 0.85; }
+  button#submit:disabled { opacity: 0.5; cursor: not-allowed; }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 8px; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .chip {
+    background: var(--chip); color: var(--text);
+    border: 1px solid var(--border); border-radius: 16px;
+    padding: 4px 12px; font-size: 12px;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .chip .x { color: var(--muted); cursor: pointer; }
+  .chip .x:hover { color: var(--err); }
+
+  /* ---------- 两栏布局 ---------- */
+  .layout {
+    display: grid; grid-template-columns: 360px 1fr; gap: 20px;
+  }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px;
+  }
+  .panel h2 {
+    margin: 0 0 16px 0; font-size: 14px; font-weight: 600;
+    color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em;
+    display: flex; align-items: center; gap: 10px;
+  }
+
+  /* ---------- 步骤卡 ---------- */
+  .step {
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px 14px; margin-bottom: 10px;
+    background: var(--panel2); transition: border-color 0.2s;
+  }
+  .step.running { border-color: var(--accent); }
+  .step.done { border-color: var(--ok); }
+  .step.fail { border-color: var(--err); }
+  .step-head {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 14px; font-weight: 600; margin-bottom: 8px;
+  }
+  .dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--muted); flex-shrink: 0;
+  }
+  .step.running .dot {
+    background: var(--accent);
+    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2);
+    animation: pulse 1.2s infinite;
+  }
+  .step.done .dot { background: var(--ok); }
+  .step.fail .dot { background: var(--err); }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2); }
+    50% { box-shadow: 0 0 0 8px rgba(99, 102, 241, 0.05); }
+  }
+
+  .step-body { font-size: 12px; color: var(--muted); }
+  .tool-row {
+    display: flex; gap: 8px; align-items: flex-start;
+    padding: 4px 0; border-bottom: 1px dashed var(--border);
+  }
+  .tool-row:last-child { border-bottom: none; }
+  .tool-name {
+    font-family: monospace; color: var(--accent);
+    background: var(--accent-soft); padding: 2px 8px; border-radius: 4px;
+    font-size: 11px; white-space: nowrap;
+  }
+  .tool-args { flex: 1; font-size: 11px; color: var(--muted); font-family: monospace; word-break: break-all; }
+  .tool-args.ok { color: var(--ok); }
+  .tool-args.err { color: var(--err); }
+  .key-info {
+    background: rgba(99, 102, 241, 0.08); border-radius: 6px;
+    padding: 6px 10px; font-family: monospace; font-size: 11px; color: var(--text);
+  }
+  .note {
+    font-size: 12px; color: var(--warn); padding: 6px 10px;
+    border-left: 3px solid var(--warn); background: rgba(245, 158, 11, 0.08);
+    border-radius: 0 6px 6px 0; margin-bottom: 10px;
+  }
+  #loading {
+    display: none; font-size: 13px; color: var(--muted);
+    padding: 20px; text-align: center;
+  }
+  #loading.active { display: block; }
+
+  /* ---------- 结果区 ---------- */
+  #answer {
+    font-size: 15px; line-height: 1.7;
+  }
+  #answer h1, #answer h2, #answer h3 { margin-top: 20px; }
+  #answer h1 { font-size: 22px; }
+  #answer h2 { font-size: 18px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+  #answer strong { color: var(--accent); }
+  #answer blockquote {
+    border-left: 3px solid var(--accent);
+    padding-left: 12px; color: var(--muted); font-style: italic;
+    margin: 12px 0;
+  }
+  #answer code {
+    background: var(--panel2); padding: 2px 6px; border-radius: 4px;
+    font-family: monospace; font-size: 13px;
+  }
+  .empty { color: var(--muted); text-align: center; padding: 40px 20px; font-size: 13px; }
+
+  .stats {
+    display: flex; gap: 16px; flex-wrap: wrap;
+    padding: 12px 16px; background: var(--panel2);
+    border-radius: 8px; margin-bottom: 16px;
+    font-size: 13px;
+  }
+  .stats .k { color: var(--muted); }
+  .stats .v { color: var(--text); font-weight: 600; }
+  .stats .v.ok { color: var(--ok); }
+  .stats .v.warn { color: var(--warn); }
+
+  /* ---------- 多模态输入 ---------- */
+  .modality-row {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+    margin-top: 12px;
+  }
+  @media (max-width: 900px) { .modality-row { grid-template-columns: repeat(2, 1fr); } }
+  .modality-card {
+    border: 2px dashed var(--border); border-radius: 10px;
+    padding: 14px; text-align: center; cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    background: var(--panel2);
+  }
+  .modality-card:hover { border-color: var(--accent); }
+  .modality-card.has-file {
+    border-style: solid; border-color: var(--ok); background: rgba(34, 197, 94, 0.08);
+  }
+  .modality-card .icon { font-size: 24px; margin-bottom: 6px; }
+  .modality-card .label { font-size: 12px; color: var(--muted); }
+  .modality-card .file-name { font-size: 11px; color: var(--ok); margin-top: 4px; word-break: break-all; }
+  .modality-card input[type="file"] { display: none; }
+  .modality-card.recording { border-color: var(--err); animation: pulse 0.8s infinite; }
+
+  .audio-bar {
+    display: flex; gap: 10px; align-items: center; margin-top: 10px;
+    background: var(--panel2); padding: 10px 14px; border-radius: 8px;
+    font-size: 12px;
+  }
+  .audio-bar audio { flex: 1; height: 32px; }
+  .audio-bar .asr-text { color: var(--muted); }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>🧪 健康膳食 Agent · 节点流 Demo</h1>
+    <div class="sub">LangGraph 状态机 × MCP 工具 × 多模态输入，每个节点/工具都实时可见</div>
+  </div>
+</header>
+
+<div class="container">
+
+  <div class="input-card">
+    <textarea id="query" placeholder="输入你的诉求，或者直接上传图片/录音">根据我的体检报告和冰箱里的食材，推荐一份适合我的晚餐</textarea>
+
+    <!-- 多模态输入区 -->
+    <div class="modality-row">
+      <div class="modality-card" id="card-report">
+        <input type="file" id="file-report" accept=".png,.jpg,.jpeg,.pdf" />
+        <div class="icon">📋</div>
+        <div class="label">体检报告</div>
+        <div class="file-name" id="name-report">点击上传</div>
+      </div>
+      <div class="modality-card" id="card-fridge">
+        <input type="file" id="file-fridge" accept=".png,.jpg,.jpeg" />
+        <div class="icon">🥬</div>
+        <div class="label">冰箱图片</div>
+        <div class="file-name" id="name-fridge">点击上传</div>
+      </div>
+      <div class="modality-card" id="card-voice" onclick="startRecording()">
+        <div class="icon">🎤</div>
+        <div class="label">语音输入</div>
+        <div class="file-name" id="name-voice" style="color:var(--muted)">点击录音</div>
+      </div>
+      <div class="modality-card" style="opacity:0.5">
+        <div class="icon">🔊</div>
+        <div class="label">TTS 播报</div>
+        <div class="file-name">结果生成后自动播放</div>
+      </div>
+    </div>
+    <div id="audio-playbar" class="audio-bar" style="display:none">
+      <span>🔊 Agent 回复：</span>
+      <audio id="tts-audio" controls></audio>
+    </div>
+
+    <div class="row">
+      <input id="ingredients-input" placeholder="食材（逗号分隔，可选）：不填则自动 YOLO 识别冰箱图" />
+      <button id="submit">🚀 开始规划</button>
+    </div>
+    <div class="hint">不填任何图片也能跑：体检报告走 Mock 文本，冰箱图走 Mock YOLO 识别老项目内置测试素材。</div>
+  </div>
+
+  <div class="layout">
+
+    <!-- 左侧：思考过程 -->
+    <div class="panel">
+      <h2>🧠 思考过程 <span style="color:var(--muted);font-weight:400;font-size:11px;">(逐节点 · 实时)</span></h2>
+      <div id="thinking"></div>
+      <div id="loading">⏳ 正在启动 Agent...</div>
+    </div>
+
+    <!-- 右侧：最终答案 -->
+    <div class="panel">
+      <h2>✅ 最终输出</h2>
+      <div id="stats"></div>
+      <div id="answer" class="empty">
+        提交查询后，Agent 的完整菜谱会出现在这里。
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+/* ========= 状态机：step_id → step card ========= */
+const steps = new Map();   // step_id -> {el, toolRows: [], state: 'running'|'done'}
+let isLoading = false;
+let finalResult = null;
+
+/* ========= 节点标题样式 ========= */
+const TOOL_COLOR = {
+  search_diet_guide: "#6366f1",
+  calculate_nutrition: "#f59e0b",
+  generate_recipe: "#22c55e",
+  parse_health_report: "#06b6d4",
+  detect_ingredients: "#a855f7",
+};
+
+/* ========= 事件解析：SSE 规范 ========= */
+async function consumeSSE(response, onEvent) {
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const {done, value} = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, {stream: true});
+
+    // SSE 规范：事件之间用空行分隔
+    let sep;
+    while ((sep = buffer.indexOf("\n\n")) !== -1) {
+      const raw = buffer.slice(0, sep);
+      buffer = buffer.slice(sep + 2);
+
+      const lines = raw.split("\n").filter(l => l.startsWith("data:"));
+      const payload = lines.map(l => l.slice(5).trim()).join("\n");
+      if (!payload) continue;
+      if (payload === "[DONE]") continue;
+
+      try { onEvent(JSON.parse(payload)); } catch (e) { /* 心跳/空事件忽略 */ }
+    }
+  }
+}
+
+/* ========= 渲染：幂等更新 ========= */
+function handleEvent(ev) {
+  if (!ev || !ev.type) return;
+
+  switch (ev.type) {
+    case "status":
+      isLoading = ev.is_loading;
+      document.getElementById("loading").classList.toggle("active", isLoading);
+      break;
+
+    case "step_start": {
+      let card = steps.get(ev.step_id);
+      if (!card) {
+        const el = document.createElement("div");
+        el.className = "step running";
+        el.innerHTML = `
+          <div class="step-head"><span class="dot"></span><span class="step-title"></span></div>
+          <div class="step-body"></div>
+        `;
+        document.getElementById("thinking").appendChild(el);
+        card = { el, titleEl: el.querySelector(".step-title"), bodyEl: el.querySelector(".step-body") };
+        steps.set(ev.step_id, card);
+      }
+      card.titleEl.textContent = ev.title;
+      card.el.className = "step running";
+      break;
+    }
+
+    case "tool_call": {
+      const card = steps.get(ev.step_id); if (!card) return;
+      const row = document.createElement("div");
+      row.className = "tool-row";
+      const color = TOOL_COLOR[ev.tool] || "#8b92b8";
+      row.innerHTML = `
+        <span class="tool-name" style="color:${color};background:${color}22;">${ev.tool}</span>
+        <span class="tool-args">调用中… ${ev.args_summary ? JSON.stringify(ev.args_summary) : ""}</span>
+      `;
+      card.bodyEl.appendChild(row);
+      // 记录下来，tool_result 来了更新这一行
+      if (!card._rows) card._rows = [];
+      card._rows.push({ tool: ev.tool, row, argsEl: row.querySelector(".tool-args") });
+      break;
+    }
+
+    case "tool_result": {
+      const card = steps.get(ev.step_id); if (!card || !card._rows) return;
+      const pair = card._rows.find(r => r.tool === ev.tool && r.argsEl.textContent.includes("调用中"));
+      if (pair) {
+        const summary = typeof ev.summary === "object" ? JSON.stringify(ev.summary).slice(0, 100) : String(ev.summary || "");
+        pair.argsEl.textContent = (ev.ok ? "✅ " : "❌ ") + summary;
+        pair.argsEl.className = "tool-args " + (ev.ok ? "ok" : "err");
+      }
+      break;
+    }
+
+    case "step_end": {
+      const card = steps.get(ev.step_id); if (!card) return;
+      card.el.className = "step done";
+      if (ev.key && Object.keys(ev.key).length) {
+        const info = document.createElement("div");
+        info.className = "key-info";
+        info.textContent = JSON.stringify(ev.key, null, 2);
+        card.bodyEl.appendChild(info);
+      }
+      break;
+    }
+
+    case "note": {
+      const div = document.createElement("div");
+      div.className = "note";
+      div.textContent = ev.text;
+      document.getElementById("thinking").appendChild(div);
+      break;
+    }
+
+    case "answer": {
+      finalResult = finalResult || {};
+      finalResult.final_answer = ev.chunk;
+      renderAnswer(ev.chunk);
+      break;
+    }
+
+    case "final":
+      finalResult = ev.result;
+      if (ev.result?.final_answer) playTTS(ev.result.final_answer);
+      break;
+    case "done": finish(); break;
+  }
+}
+
+/* ========= 答案渲染：轻量 Markdown ========= */
+function renderAnswer(md) {
+  if (!md) return;
+  // 代码块
+  let html = md.replace(/```(\w+)?\s*\n([\s\S]*?)```/g, (_, lang, code) => `<pre><code>${code}</code></pre>`);
+  // 标题
+  html = html.replace(/^### (.+)$/gm, "<h3>$1</h3>");
+  html = html.replace(/^## (.+)$/gm, "<h2>$1</h2>");
+  html = html.replace(/^# (.+)$/gm, "<h1>$1</h1>");
+  // 加粗
+  html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  // 引用
+  html = html.replace(/^> (.+)$/gm, "<blockquote>$1</blockquote>");
+  // 列表
+  html = html.replace(/^(\d+)\.\s+(.+)$/gm, "$1. $2");
+  html = html.replace(/^- (.+)$/gm, "• $1");
+  // 换行
+  html = html.replace(/\n\n/g, "</p><p>").replace(/\n/g, "<br>");
+
+  const container = document.getElementById("answer");
+  container.className = "";
+  container.innerHTML = html;
+}
+
+function renderStats(r) {
+  if (!r) return;
+  const ref = r.reflection || {};
+  const score = ref.score ?? 0;
+  const pass = ref.passed;
+  const revision = r.revision_count ?? 0;
+  const statEl = document.getElementById("stats");
+  statEl.innerHTML = `
+    <div><span class="k">意图</span> <span class="v">${r.intent || "?"}</span></div>
+    <div><span class="k">食材</span> <span class="v">${(r.ingredients || []).length} 种</span></div>
+    <div><span class="k">知识库</span> <span class="v">${(r.knowledge_hits || []).length} 条</span></div>
+    <div><span class="k">修订</span> <span class="v">${revision - 1} 轮</span></div>
+    <div><span class="k">质量分</span> <span class="v ${pass ? "ok" : "warn"}">${score}/100</span></div>
+  `;
+}
+
+function finish() {
+  document.getElementById("loading").classList.remove("active");
+  renderStats(finalResult);
+}
+
+/* ========= 多模态：文件上传 / 录音 ========= */
+let uploadedPaths = { report: null, fridge: null };
+let mediaRecorder = null;
+let audioChunks = [];
+
+function bindUpload(fileId, cardId, nameId, uploadUrl) {
+  const fileInput = document.getElementById(fileId);
+  const card = document.getElementById(cardId);
+  const nameEl = document.getElementById(nameId);
+
+  card.addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", async () => {
+    const file = fileInput.files?.[0];
+    if (!file) return;
+    nameEl.textContent = "上传中...";
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("user_id", "1");
+    try {
+      const resp = await fetch(uploadUrl, { method: "POST", body: fd });
+      const data = await resp.json();
+      if (data.path) {
+        uploadedPaths[cardId === "card-report" ? "report" : "fridge"] = data.path;
+        card.classList.add("has-file");
+        nameEl.textContent = file.name + " ✓";
+        nameEl.style.color = "var(--ok)";
+      }
+    } catch (err) {
+      nameEl.textContent = "上传失败: " + err.message;
+      nameEl.style.color = "var(--err)";
+    }
+  });
+}
+bindUpload("file-report", "card-report", "name-report", "/api/upload/report");
+bindUpload("file-fridge", "card-fridge", "name-fridge", "/api/upload/fridge");
+
+/* 录音：MediaRecorder API */
+async function startRecording() {
+  const card = document.getElementById("card-voice");
+  const nameEl = document.getElementById("name-voice");
+  if (mediaRecorder && mediaRecorder.state === "recording") {
+    mediaRecorder.stop();
+    card.classList.remove("recording");
+    nameEl.textContent = "处理中...";
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(stream);
+    audioChunks = [];
+    mediaRecorder.ondataavailable = e => e.data.size && audioChunks.push(e.data);
+    mediaRecorder.onstop = async () => {
+      const blob = new Blob(audioChunks, { type: "audio/webm" });
+      stream.getTracks().forEach(t => t.stop());
+      const fd = new FormData();
+      fd.append("file", blob, "voice.webm");
+      fd.append("user_id", "1");
+      try {
+        const resp = await fetch("/api/asr", { method: "POST", body: fd });
+        const data = await resp.json();
+        if (data.text) {
+          document.getElementById("query").value = data.text;
+          nameEl.textContent = "🎤 转写: " + data.text.slice(0, 30);
+          nameEl.style.color = "var(--ok)";
+          card.classList.add("has-file");
+        } else {
+          nameEl.textContent = data.note || "未识别到语音";
+          nameEl.style.color = "var(--err)";
+        }
+      } catch (err) {
+        nameEl.textContent = "识别失败: " + err.message;
+        nameEl.style.color = "var(--err)";
+      }
+    };
+    mediaRecorder.start();
+    card.classList.add("recording");
+    nameEl.textContent = "⏺ 点击停止";
+  } catch (err) {
+    nameEl.textContent = "录音不可用: " + err.message;
+    nameEl.style.color = "var(--err)";
+  }
+}
+
+/* ========= 提交 ========= */
+document.getElementById("submit").addEventListener("click", async () => {
+  const btn = document.getElementById("submit");
+  let query = document.getElementById("query").value.trim();
+  const ingredientText = document.getElementById("ingredients-input").value.trim();
+  const ingredients = ingredientText
+    ? ingredientText.split(/[,，、]+/).map(s => s.trim()).filter(Boolean)
+    : null;
+
+  /* 自动兜底：什么都没填也能跑 */
+  if (!query && !uploadedPaths.report && !uploadedPaths.fridge) {
+    query = "推荐一份晚餐";
+  }
+
+  btn.disabled = true; btn.textContent = "⏳ 规划中...";
+  steps.clear();
+  document.getElementById("thinking").innerHTML = "";
+  document.getElementById("answer").innerHTML = '<div class="empty">等待 Agent 完成...</div>';
+  document.getElementById("stats").innerHTML = "";
+  document.getElementById("loading").classList.add("active");
+  document.getElementById("audio-playbar").style.display = "none";
+  finalResult = null;
+
+  try {
+    const body = {
+      user_id: 1, query, ingredients, debug: true,
+      report_image_path: uploadedPaths.report,
+      fridge_image_path: uploadedPaths.fridge,
+    };
+    const resp = await fetch("/api/agent/stream", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(body),
+    });
+    await consumeSSE(resp, handleEvent);
+  } catch (err) {
+    document.getElementById("answer").innerHTML = `<div class="empty" style="color:var(--err);">❌ ${err.message}</div>`;
+    document.getElementById("loading").classList.remove("active");
+  } finally {
+    btn.disabled = false; btn.textContent = "🚀 开始规划";
+  }
+});
+
+/* ========= TTS 播报：拿到 final 后自动请求 ========= */
+async function playTTS(text) {
+  try {
+    const resp = await fetch("/api/tts", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ text }),
+    });
+    const data = await resp.json();
+    if (data.audio_base64) {
+      const audio = document.getElementById("tts-audio");
+      audio.src = "data:" + (data.mime || "audio/mp3") + ";base64," + data.audio_base64;
+      document.getElementById("audio-playbar").style.display = "flex";
+      audio.play();
+    }
+  } catch (_) { /* Mock 环境 TTS 可能返回空，静默跳过 */ }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,46 @@
+# ---------- 构建阶段：用于构建 Docker 镜像 ----------
+FROM python:3.11-slim AS build
+
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --user -r requirements.txt
+
+
+# ---------- 运行阶段：更精简 ----------
+FROM python:3.11-slim AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ffmpeg ca-certificates tini \
+ && rm -rf /var/lib/apt/lists/* \
+ && groupadd --gid 1000 appuser \
+ && useradd --uid 1000 --gid appuser --shell /bin/bash --create-home appuser
+
+WORKDIR /app
+
+# 从 build 阶段复制已安装的包
+COPY --from=build /root/.local /home/appuser/.local
+ENV PATH=/home/appuser/.local/bin:$PATH
+
+# 复制应用代码
+COPY --chown=appuser:appuser app/ ./app/
+COPY --chown=appuser:appuser data/ ./data/
+COPY --chown=appuser:appuser models/ ./models/
+
+RUN mkdir -p /app/data/uploads/reports /app/data/uploads/fridge /app/data/uploads/voices \
+ && chown -R appuser:appuser /app/data
+
+USER appuser
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')" || exit 1
+
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["uvicorn", "app.api:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,0 +1,22 @@
+# 核心运行时（必装）
+langgraph>=0.2
+langchain-core>=0.3
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2.6
+sqlalchemy>=2.0
+python-multipart>=0.0.9
+openai>=1.30
+mcp>=1.0
+
+# 生产存储（可选）
+pymilvus>=2.4
+
+# 真实多模态（可选，未安装时自动走 Mock）
+# ultralytics>=8.3
+# pytesseract>=0.3.10
+# pypdf>=4.0
+# pillow>=10.0
+
+# 测试
+pytest>=8.0

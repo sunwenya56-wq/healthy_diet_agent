@@ -1,0 +1,35 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+.eggs/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Data & uploads（运行时挂载）
+data/uploads/
+data/diet.db
+data/milvus.db
+*.db
+
+# Models（通过 volumes 挂载）
+# models/  ← 留着，用 volumes 挂载
+
+# OS
+.DS_Store
+Thumbs.db
